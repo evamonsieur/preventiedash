@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Preventie BVH</title>
+<style>
+:root{
+  --ink:#16202b;
+  --ink-soft:#5b6874;
+  --paper:#f6f5f1;
+  --card:#ffffff;
+  --line:#dfdcd4;
+  --accent:#1f5f5b;
+  --accent-soft:#e3efee;
+  --signal:#f2b632;
+  --alarm:#b23b2e;
+  --ok:#3d7a4e;
+  --radius:10px;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:16px;line-height:1.45;
+  padding-top:var(--safe-top);padding-bottom:var(--safe-bottom);
+}
+button{font:inherit;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+.hidden{display:none !important}
+
+/* ---------- login ---------- */
+#login{max-width:380px;margin:0 auto;padding:15vh 24px 40px}
+#login h1{font-size:1.5rem;margin:0 0 4px;letter-spacing:-.01em}
+#login p.sub{margin:0 0 28px;color:var(--ink-soft);font-size:.9rem}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.82rem;color:var(--ink-soft);margin-bottom:4px}
+.field input,.field select,.field textarea{
+  width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius);
+  background:var(--card)}
+.btn{
+  background:var(--accent);color:#fff;border:0;border-radius:var(--radius);
+  padding:11px 18px;font-weight:600}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.sec{background:var(--card);color:var(--ink);border:1px solid var(--line);font-weight:500}
+.btn.wide{width:100%}
+.msg{font-size:.86rem;margin-top:10px;min-height:20px}
+.msg.err{color:var(--alarm)}
+.msg.ok{color:var(--ok)}
+
+/* ---------- app frame ---------- */
+header{
+  position:sticky;top:0;z-index:10;background:var(--card);
+  border-bottom:1px solid var(--line);padding:calc(var(--safe-top) + 10px) 16px 0}
+.topline{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.brand{font-weight:700;letter-spacing:-.01em}
+.who{margin-left:auto;font-size:.82rem;color:var(--ink-soft);display:flex;align-items:center;gap:10px}
+.who button{background:none;border:0;color:var(--accent);text-decoration:underline;padding:0;font-size:.82rem}
+select#schoolPick{padding:6px 10px;border:1px solid var(--line);border-radius:var(--radius);background:var(--paper)}
+nav{display:flex;gap:2px;overflow-x:auto}
+nav button{
+  background:none;border:0;border-bottom:3px solid transparent;
+  padding:10px 12px;color:var(--ink-soft);white-space:nowrap}
+nav button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+main{max-width:900px;margin:0 auto;padding:16px 16px 64px}
+
+/* ---------- filters & lists ---------- */
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.bar select,.bar input{padding:7px 10px;border:1px solid var(--line);border-radius:var(--radius);background:var(--card)}
+.count{color:var(--ink-soft);font-size:.85rem;margin-left:auto}
+ul.list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+li.row{
+  background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);
+  border-radius:var(--radius);padding:12px 14px;display:grid;gap:4px;cursor:pointer}
+li.row:hover{border-color:#c7c2b7}
+li.row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row .head{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.row .title{font-weight:600}
+.row .meta{color:var(--ink-soft);font-size:.83rem;display:flex;gap:10px;flex-wrap:wrap}
+.row.rood{border-left-color:var(--alarm)}
+.row.geel{border-left-color:var(--signal)}
+.row.groen{border-left-color:var(--ok)}
+.row.grijs{border-left-color:#b9b4a9}
+.tag{
+  font-size:.74rem;padding:2px 8px;border-radius:999px;background:var(--accent-soft);
+  color:var(--accent);white-space:nowrap}
+.tag.rood{background:#f6e2df;color:var(--alarm)}
+.tag.geel{background:#fbefd3;color:#8a6516}
+.tag.groen{background:#e0efe4;color:var(--ok)}
+.tag.grijs{background:#eceae5;color:var(--ink-soft)}
+.empty{background:var(--card);border:1px dashed var(--line);border-radius:var(--radius);
+  padding:24px;text-align:center;color:var(--ink-soft)}
+
+/* ---------- overzicht ---------- */
+.cards{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:20px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+.stat .n{font-size:1.8rem;font-weight:700;line-height:1.1}
+.stat .l{color:var(--ink-soft);font-size:.85rem}
+.stat.alarm .n{color:var(--alarm)}
+.stat.warn .n{color:#8a6516}
+h2.sec{font-size:1rem;margin:22px 0 10px}
+
+/* ---------- detail ---------- */
+.sheet{
+  position:fixed;inset:0;background:rgba(22,32,43,.35);display:flex;justify-content:flex-end;z-index:20}
+.sheet .panel{
+  background:var(--paper);width:min(520px,100%);height:100%;overflow-y:auto;
+  padding:calc(var(--safe-top) + 16px) 18px calc(var(--safe-bottom) + 40px)}
+.panel h3{margin:0 0 2px;font-size:1.15rem}
+.panel .sub{color:var(--ink-soft);font-size:.86rem;margin:0 0 16px}
+.panel dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0 0 18px;font-size:.92rem}
+.panel dt{color:var(--ink-soft)}
+.panel dd{margin:0}
+.block{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px}
+.block h4{margin:0 0 10px;font-size:.92rem}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.closebar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.closebar button{background:none;border:0;color:var(--accent);padding:0}
+a.link{color:var(--accent)}
+.note{font-size:.82rem;color:var(--ink-soft)}
+@media (max-width:520px){
+  .sheet{justify-content:stretch}
+  .panel{width:100%}
+}
+@media (prefers-reduced-motion:no-preference){
+  .sheet .panel{animation:slide .18s ease-out}
+  @keyframes slide{from{transform:translateX(18px);opacity:.6}to{transform:none;opacity:1}}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<section id="login">
+  <h1>Preventie BVH</h1>
+  <p class="sub">Meldingen, nazichten en acties van je school.</p>
+  <div class="field"><label for="email">E-mailadres</label><input id="email" type="email" autocomplete="username"></div>
+  <div class="field"><label for="pw">Wachtwoord</label><input id="pw" type="password" autocomplete="current-password"></div>
+  <button class="btn wide" id="loginBtn">Aanmelden</button>
+  <p class="msg" id="loginMsg"></p>
+  <p class="note" id="hashTool"></p>
+</section>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hidden">
+  <header>
+    <div class="topline">
+      <span class="brand">Preventie BVH</span>
+      <select id="schoolPick" aria-label="School"></select>
+      <span class="who"><span id="whoName"></span><button id="logout">Afmelden</button></span>
+    </div>
+    <nav id="tabs"></nav>
+  </header>
+  <main>
+    <div id="view"></div>
+  </main>
+</div>
+
+<div id="sheet" class="sheet hidden"><div class="panel" id="panel"></div></div>
+
+<script>
+/* =====================================================================
+   INSTELLINGEN — vul hier je Airtable-gegevens in
+   ===================================================================== */
+const CONFIG = {
+  token: "PLAK_HIER_JE_AIRTABLE_TOKEN",   // personal access token met data.records:read + write op deze base
+  baseId: "app6AhybyyHKm9S0G"
+};
+
+/* Tabellen en velden van de base Preventie BVH */
+const T = {
+  gebruikers: "tblFDLasizJQIdqyp",
+  scholen:    "tblm7puuNpnPHmYLL",
+  taken:      "tblYGjDHYTpflIqZG",
+  meldingen:  "tbl3VoTGBweymxVi9",
+  acties:     "tblVSywH1xgkltedT"
+};
+
+const F = {
+  g: { naam:"Name", voornaam:"Voornaam", familienaam:"Naam", email:"E-mail", hash:"Wachtwoord_Hash",
+       login:"Laatste_Login", rol:"Rol", actief:"Actief", scholen:"Scholen" },
+  s: { naam:"Name", code:"Schoolcode" },
+  t: { naam:"Naam", scholen:"Scholen", taak:"Taak", taakcode:"Taakcode (from Taak)",
+       omschrijving:"Omschrijving (from Taak)", uitvoerder:"Standaard uitvoerder (from Taak)",
+       firma:"Externe firma", periodiciteit:"Periodiciteit", laatste:"Laatste uitvoering",
+       volgende:"Volgende uitvoering", status:"Status", actief:"Actief",
+       opmerkingen:"Opmerkingen", map:"Documentenmap", bvh:"BVH-proces",
+       nazichtmeldingen:"Nazichtmeldingen", open:"Open nazichten" },
+  m: { nummer:"Nummer", school:"School", schoolnaam:"Schoolnaam", bron:"Bron", taak:"Taak per school",
+       locatie:"Locatie", bvh:"BVH-categorie", omschrijving:"Omschrijving", foto:"Foto",
+       urgentie:"Urgentie", melder:"Naam melder", melderMail:"E-mail melder", status:"Status",
+       toegewezenRol:"Toegewezen aan", toegewezen:"Toegewezen aan gebruiker",
+       uitgevoerd:"Uitgevoerd door", gemeld:"Datum gemeld", afgesloten:"Datum afgesloten",
+       dagen:"Dagen open", opmerkingen:"Opmerkingen" },
+  a: { actie:"Actie", nummer:"Nummer", plan:"Plan", school:"School", thema:"Thema/ risico",
+       bvh:"BVH-proces", prioriteit:"Prioriteit", doel:"Doel", aanpak:"Aanpak",
+       uitvoerder:"Uitvoerder", timing:"Timing", streefdatum:"Streefdatum",
+       schooljaar:"Schooljaar", status:"Status", budget:"Budget" }
+};
+
+/* =====================================================================
+   Airtable
+   ===================================================================== */
+const API = "https://api.airtable.com/v0/" + CONFIG.baseId + "/";
+
+async function at(path, opts){
+  const res = await fetch(API + path, Object.assign({
+    headers: { "Authorization": "Bearer " + CONFIG.token, "Content-Type": "application/json" }
+  }, opts||{}));
+  if(!res.ok){
+    const txt = await res.text();
+    throw new Error("Airtable " + res.status + ": " + txt.slice(0,180));
+  }
+  return res.json();
+}
+
+async function listAll(table, params){
+  const out = []; let offset = null;
+  do{
+    const q = new URLSearchParams(params||{});
+    if(offset) q.set("offset", offset);
+    const data = await at(table + "?" + q.toString());
+    out.push.apply(out, data.records);
+    offset = data.offset;
+  }while(offset);
+  return out;
+}
+
+const patch = (table, id, fields) =>
+  at(table + "/" + id, { method:"PATCH", body: JSON.stringify({ fields, typecast:false }) });
+
+const create = (table, fields) =>
+  at(table, { method:"POST", body: JSON.stringify({ records:[{ fields }] }) });
+
+function esc(s){ return String(s==null?"":s).replace(/"/g,'\\"'); }
+
+/* =====================================================================
+   Hulpjes
+   ===================================================================== */
+const $ = sel => document.querySelector(sel);
+const one = v => Array.isArray(v) ? (v.length?v[0]:"") : (v==null?"":v);
+const txt = s => String(s==null?"":s).replace(/[&<>"']/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const vandaag = () => new Date().toISOString().slice(0,10);
+const datum = d => d ? new Date(d).toLocaleDateString("nl-BE",{day:"2-digit",month:"2-digit",year:"numeric"}) : "—";
+
+async function sha256(s){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+/* =====================================================================
+   Toestand
+   ===================================================================== */
+const S = { user:null, rol:null, scholen:[], school:null, tab:"meldingen",
+            meldingen:[], taken:[], acties:[], gebruikers:[] };
+
+const TABS = {
+  meldingen: "Meldingen",
+  nazichten: "Nazichten",
+  acties:    "Acties",
+  overzicht: "Overzicht"
+};
+
+function tabsVoorRol(rol){
+  if(rol === "Werkman") return ["meldingen"];
+  if(rol === "Directie") return ["meldingen","nazichten","acties","overzicht"];
+  return ["meldingen","nazichten","acties","overzicht"];
+}
+const magBewerken = () => S.rol === "TAC" || S.rol === "Werkman" || S.rol === "Coördinator";
+
+/* =====================================================================
+   Aanmelden
+   ===================================================================== */
+$("#loginBtn").addEventListener("click", login);
+$("#pw").addEventListener("keydown", e => { if(e.key === "Enter") login(); });
+
+async function login(){
+  const email = $("#email").value.trim().toLowerCase();
+  const pw = $("#pw").value;
+  const msg = $("#loginMsg");
+  if(!email || !pw){ msg.className = "msg err"; msg.textContent = "Vul je e-mailadres en wachtwoord in."; return; }
+  msg.className = "msg"; msg.textContent = "Even geduld…";
+  $("#loginBtn").disabled = true;
+  try{
+    const recs = await listAll(T.gebruikers, {
+      filterByFormula: `LOWER({${F.g.email}}) = "${esc(email)}"`,
+      pageSize: 5
+    });
+    const u = recs[0];
+    if(!u){ throw new Error("onbekend"); }
+    if(u.fields[F.g.actief] === false){ throw new Error("inactief"); }
+    const hash = await sha256(pw);
+    const bewaard = String(u.fields[F.g.hash]||"").trim().toLowerCase();
+    if(!bewaard){ throw new Error("geen-hash"); }
+    if(bewaard !== hash){ throw new Error("fout"); }
+
+    S.user = u;
+    S.rol = u.fields[F.g.rol] || "Directie";
+    patch(T.gebruikers, u.id, { [F.g.login]: new Date().toISOString() }).catch(()=>{});
+    await startApp();
+  }catch(err){
+    const m = String(err.message);
+    msg.className = "msg err";
+    if(m === "onbekend" || m === "fout") msg.textContent = "E-mailadres of wachtwoord klopt niet.";
+    else if(m === "inactief") msg.textContent = "Dit account staat op niet-actief. Vraag je TAC om toegang.";
+    else if(m === "geen-hash") msg.textContent = "Voor dit account is nog geen wachtwoord ingesteld. Vraag je TAC om er een in te stellen.";
+    else msg.textContent = "Aanmelden lukt niet: " + m;
+  }finally{
+    $("#loginBtn").disabled = false;
+  }
+}
+
+$("#logout").addEventListener("click", () => location.reload());
+
+/* =====================================================================
+   Gegevens ophalen
+   ===================================================================== */
+async function startApp(){
+  const alleScholen = await listAll(T.scholen, { pageSize:100 });
+  const eigen = S.user.fields[F.g.scholen] || [];
+  S.scholen = (S.rol === "Coördinator")
+    ? alleScholen
+    : alleScholen.filter(s => eigen.indexOf(s.id) > -1);
+  if(!S.scholen.length) S.scholen = alleScholen;
+  S.school = S.scholen[0];
+
+  $("#login").classList.add("hidden");
+  $("#app").classList.remove("hidden");
+  $("#whoName").textContent = (S.user.fields[F.g.naam] || S.user.fields[F.g.email]) + " · " + S.rol;
+
+  const pick = $("#schoolPick");
+  pick.innerHTML = S.scholen.map(s => `<option value="${s.id}">${txt(s.fields[F.s.naam])}</option>`).join("");
+  pick.value = S.school.id;
+  pick.addEventListener("change", async () => {
+    S.school = S.scholen.find(s => s.id === pick.value);
+    await laadSchool();
+    render();
+  });
+
+  const tl = tabsVoorRol(S.rol);
+  S.tab = tl[0];
+  $("#tabs").innerHTML = tl.map(t => `<button data-tab="${t}">${TABS[t]}</button>`).join("");
+  $("#tabs").addEventListener("click", e => {
+    const b = e.target.closest("button[data-tab]");
+    if(!b) return;
+    S.tab = b.dataset.tab;
+    render();
+  });
+
+  await laadSchool();
+  render();
+}
+
+async function laadSchool(){
+  $("#view").innerHTML = `<p class="note">Gegevens ophalen…</p>`;
+  const naam = esc(S.school.fields[F.s.naam]);
+  const [meldingen, taken, acties, gebruikers] = await Promise.all([
+    listAll(T.meldingen, { filterByFormula:`{${F.m.schoolnaam}} = "${naam}"`, pageSize:100 }),
+    listAll(T.taken, { filterByFormula:`{${F.t.naam}} != ""`, pageSize:100 }),
+    listAll(T.acties, { pageSize:100 }),
+    listAll(T.gebruikers, { pageSize:100 })
+  ]);
+  const schoolId = S.school.id;
+  S.meldingen = meldingen;
+  S.taken = taken.filter(r => (r.fields[F.t.scholen]||[]).indexOf(schoolId) > -1);
+  S.acties = acties.filter(r => (r.fields[F.a.school]||[]).indexOf(schoolId) > -1);
+  S.gebruikers = gebruikers.filter(g =>
+    (g.fields[F.g.scholen]||[]).indexOf(schoolId) > -1 && g.fields[F.g.actief] !== false);
+}
+
+/* =====================================================================
+   Weergave
+   ===================================================================== */
+function render(){
+  document.querySelectorAll("#tabs button").forEach(b =>
+    b.classList.toggle("on", b.dataset.tab === S.tab));
+  if(S.tab === "meldingen") viewMeldingen();
+  else if(S.tab === "nazichten") viewNazichten();
+  else if(S.tab === "acties") viewActies();
+  else viewOverzicht();
+}
+
+const urgentieKleur = u => u === "Dringend" ? "rood" : (u === "Laag" ? "grijs" : "geel");
+const statusKleur = s => ({ "Vervallen":"rood", "Binnenkort":"geel", "OK":"groen",
+                            "In te plannen":"geel", "Op afroep":"grijs", "Niet actief":"grijs" }[s] || "grijs");
+
+/* ---------- meldingen ---------- */
+function viewMeldingen(){
+  const open = S.meldingen.filter(m => m.fields[F.m.status] !== "Afgewerkt");
+  const mijn = S.rol === "Werkman";
+  let lijst = open;
+  if(mijn){
+    lijst = open.filter(m => {
+      const toe = m.fields[F.m.toegewezen] || [];
+      return toe.length === 0 || toe.indexOf(S.user.id) > -1;
+    });
+  }
+  const html = `
+    <div class="bar">
+      <select id="fStatus">
+        <option value="open">Openstaand</option>
+        <option value="alles">Alles</option>
+        <option value="Afgewerkt">Afgewerkt</option>
+      </select>
+      <select id="fBron">
+        <option value="">Alle bronnen</option>
+        <option value="Personeel">Meldingen van personeel</option>
+        <option value="Nazicht">Nazichten</option>
+      </select>
+      <input id="fZoek" type="search" placeholder="Zoeken">
+      <span class="count">${lijst.length} ${lijst.length === 1 ? "item" : "items"}</span>
+    </div>
+    <ul class="list" id="mList"></ul>`;
+  $("#view").innerHTML = html;
+
+  function teken(){
+    const st = $("#fStatus").value, bron = $("#fBron").value, q = $("#fZoek").value.toLowerCase();
+    let rows = S.meldingen;
+    if(st === "open") rows = rows.filter(m => m.fields[F.m.status] !== "Afgewerkt");
+    else if(st === "Afgewerkt") rows = rows.filter(m => m.fields[F.m.status] === "Afgewerkt");
+    if(mijn) rows = rows.filter(m => {
+      const toe = m.fields[F.m.toegewezen] || [];
+      return toe.length === 0 || toe.indexOf(S.user.id) > -1;
+    });
+    if(bron) rows = rows.filter(m => m.fields[F.m.bron] === bron);
+    if(q) rows = rows.filter(m =>
+      ((m.fields[F.m.omschrijving]||"") + " " + (m.fields[F.m.locatie]||"")).toLowerCase().indexOf(q) > -1);
+    rows.sort((a,b) => (b.fields[F.m.dagen]||0) - (a.fields[F.m.dagen]||0));
+    $(".count").textContent = rows.length + (rows.length === 1 ? " item" : " items");
+    $("#mList").innerHTML = rows.length ? rows.map(m => {
+      const f = m.fields;
+      const kleur = f[F.m.status] === "Afgewerkt" ? "groen" : urgentieKleur(f[F.m.urgentie]);
+      const toe = (f[F.m.toegewezen]||[]).map(id => naamVan(id)).join(", ");
+      return `<li class="row ${kleur}" tabindex="0" data-id="${m.id}">
+        <div class="head">
+          <span class="title">${txt((f[F.m.omschrijving]||"").split("\n")[0].slice(0,90))}</span>
+          <span class="tag ${kleur}">${txt(f[F.m.status]||"")}</span>
+        </div>
+        <div class="meta">
+          <span>#${f[F.m.nummer]||""}</span>
+          ${f[F.m.locatie] ? `<span>${txt(f[F.m.locatie])}</span>` : ""}
+          <span>${f[F.m.bron] === "Nazicht" ? "Nazicht" : "Gemeld"} · ${datum(f[F.m.gemeld])}</span>
+          ${toe ? `<span>${txt(toe)}</span>` : `<span>Nog niemand</span>`}
+        </div>
+      </li>`;
+    }).join("") : `<li class="empty">Geen meldingen die hierbij passen.</li>`;
+  }
+  teken();
+  ["#fStatus","#fBron","#fZoek"].forEach(s => $(s).addEventListener("input", teken));
+  $("#mList").addEventListener("click", e => {
+    const li = e.target.closest("li.row"); if(li) openMelding(li.dataset.id);
+  });
+  $("#mList").addEventListener("keydown", e => {
+    if(e.key === "Enter"){ const li = e.target.closest("li.row"); if(li) openMelding(li.dataset.id); }
+  });
+}
+
+function naamVan(id){
+  const g = S.gebruikers.find(x => x.id === id);
+  return g ? (g.fields[F.g.naam] || g.fields[F.g.email]) : "";
+}
+
+/* ---------- nazichten ---------- */
+function viewNazichten(){
+  $("#view").innerHTML = `
+    <div class="bar">
+      <select id="nStatus">
+        <option value="actie">Vervallen en binnenkort</option>
+        <option value="alles">Alles</option>
+        <option value="In te plannen">Nog in te plannen</option>
+        <option value="OK">In orde</option>
+      </select>
+      <input id="nZoek" type="search" placeholder="Zoeken">
+      <span class="count"></span>
+    </div>
+    <ul class="list" id="nList"></ul>`;
+
+  function teken(){
+    const st = $("#nStatus").value, q = $("#nZoek").value.toLowerCase();
+    let rows = S.taken.filter(t => t.fields[F.t.actief] !== false);
+    if(st === "actie") rows = rows.filter(t => ["Vervallen","Binnenkort"].indexOf(t.fields[F.t.status]) > -1);
+    else if(st !== "alles") rows = rows.filter(t => t.fields[F.t.status] === st);
+    if(q) rows = rows.filter(t => (one(t.fields[F.t.omschrijving])||"").toLowerCase().indexOf(q) > -1);
+    const volg = { "Vervallen":0, "Binnenkort":1, "In te plannen":2, "OK":3, "Op afroep":4, "Niet actief":5 };
+    rows.sort((a,b) => (volg[a.fields[F.t.status]]??9) - (volg[b.fields[F.t.status]]??9));
+    $(".count").textContent = rows.length + (rows.length === 1 ? " taak" : " taken");
+    $("#nList").innerHTML = rows.length ? rows.map(t => {
+      const f = t.fields, k = statusKleur(f[F.t.status]);
+      return `<li class="row ${k}" tabindex="0" data-id="${t.id}">
+        <div class="head">
+          <span class="title">${txt(one(f[F.t.omschrijving]))}</span>
+          <span class="tag ${k}">${txt(f[F.t.status]||"")}</span>
+        </div>
+        <div class="meta">
+          <span>${txt(one(f[F.t.taakcode]))}</span>
+          <span>Laatst: ${datum(f[F.t.laatste])}</span>
+          <span>Volgende: ${datum(f[F.t.volgende])}</span>
+          ${f[F.t.firma] ? `<span>${txt(f[F.t.firma])}</span>` : ""}
+        </div>
+      </li>`;
+    }).join("") : `<li class="empty">Geen taken die hierbij passen.</li>`;
+  }
+  teken();
+  ["#nStatus","#nZoek"].forEach(s => $(s).addEventListener("input", teken));
+  $("#nList").addEventListener("click", e => {
+    const li = e.target.closest("li.row"); if(li) openTaak(li.dataset.id);
+  });
+  $("#nList").addEventListener("keydown", e => {
+    if(e.key === "Enter"){ const li = e.target.closest("li.row"); if(li) openTaak(li.dataset.id); }
+  });
+}
+
+/* ---------- acties ---------- */
+function viewActies(){
+  $("#view").innerHTML = `
+    <div class="bar">
+      <select id="aPlan">
+        <option value="">Jaaractieplan en 5-jarenplan</option>
+        <option value="Jaaractieplan">Jaaractieplan</option>
+        <option value="5-Jarenplan">5-jarenplan</option>
+      </select>
+      <select id="aStatus">
+        <option value="open">Nog niet uitgevoerd</option>
+        <option value="alles">Alles</option>
+      </select>
+      <input id="aZoek" type="search" placeholder="Zoeken">
+      <span class="count"></span>
+    </div>
+    <ul class="list" id="aList"></ul>`;
+
+  function teken(){
+    const plan = $("#aPlan").value, st = $("#aStatus").value, q = $("#aZoek").value.toLowerCase();
+    let rows = S.acties.slice();
+    if(plan) rows = rows.filter(a => a.fields[F.a.plan] === plan);
+    if(st === "open") rows = rows.filter(a => a.fields[F.a.status] !== "Uitgevoerd");
+    if(q) rows = rows.filter(a =>
+      ((a.fields[F.a.actie]||"") + " " + (a.fields[F.a.thema]||"")).toLowerCase().indexOf(q) > -1);
+    rows.sort((a,b) => {
+      const da = a.fields[F.a.streefdatum] || "9999", db = b.fields[F.a.streefdatum] || "9999";
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+    $(".count").textContent = rows.length + (rows.length === 1 ? " actie" : " acties");
+    $("#aList").innerHTML = rows.length ? rows.map(a => {
+      const f = a.fields;
+      const laat = f[F.a.streefdatum] && f[F.a.streefdatum] < vandaag() && f[F.a.status] !== "Uitgevoerd";
+      const k = f[F.a.status] === "Uitgevoerd" ? "groen" : (laat ? "rood" : "grijs");
+      return `<li class="row ${k}" tabindex="0" data-id="${a.id}">
+        <div class="head">
+          <span class="title">${txt(f[F.a.actie])}</span>
+          <span class="tag ${k}">${txt(f[F.a.status]||"")}</span>
+        </div>
+        <div class="meta">
+          <span>${txt(f[F.a.plan]||"")}</span>
+          ${f[F.a.thema] ? `<span>${txt(f[F.a.thema])}</span>` : ""}
+          ${f[F.a.timing] ? `<span>${txt(f[F.a.timing])}</span>` : ""}
+          <span>${f[F.a.streefdatum] ? "Streefdatum " + datum(f[F.a.streefdatum]) : "Geen datum"}</span>
+        </div>
+      </li>`;
+    }).join("") : `<li class="empty">Geen acties die hierbij passen.</li>`;
+  }
+  teken();
+  ["#aPlan","#aStatus","#aZoek"].forEach(s => $(s).addEventListener("input", teken));
+  $("#aList").addEventListener("click", e => {
+    const li = e.target.closest("li.row"); if(li) openActie(li.dataset.id);
+  });
+}
+
+/* ---------- overzicht ---------- */
+function viewOverzicht(){
+  const open = S.meldingen.filter(m => m.fields[F.m.status] !== "Afgewerkt");
+  const dringend = open.filter(m => m.fields[F.m.urgentie] === "Dringend");
+  const lang = open.filter(m => (m.fields[F.m.dagen]||0) > 30);
+  const vervallen = S.taken.filter(t => t.fields[F.t.status] === "Vervallen");
+  const binnenkort = S.taken.filter(t => t.fields[F.t.status] === "Binnenkort");
+  const teplannen = S.taken.filter(t => t.fields[F.t.status] === "In te plannen");
+  const actiesOpen = S.acties.filter(a => a.fields[F.a.status] !== "Uitgevoerd");
+  const actiesLaat = actiesOpen.filter(a => a.fields[F.a.streefdatum] && a.fields[F.a.streefdatum] < vandaag());
+
+  $("#view").innerHTML = `
+    <div class="cards">
+      <div class="stat"><div class="n">${open.length}</div><div class="l">openstaande meldingen</div></div>
+      <div class="stat alarm"><div class="n">${dringend.length}</div><div class="l">dringend</div></div>
+      <div class="stat alarm"><div class="n">${vervallen.length}</div><div class="l">vervallen nazichten</div></div>
+      <div class="stat warn"><div class="n">${binnenkort.length}</div><div class="l">nazichten binnenkort</div></div>
+      <div class="stat"><div class="n">${teplannen.length}</div><div class="l">nog in te plannen</div></div>
+      <div class="stat warn"><div class="n">${actiesLaat.length}</div><div class="l">acties over tijd</div></div>
+    </div>
+    <h2 class="sec">Langst openstaand</h2>
+    <ul class="list">${
+      open.slice().sort((a,b) => (b.fields[F.m.dagen]||0) - (a.fields[F.m.dagen]||0)).slice(0,5).map(m =>
+        `<li class="row ${urgentieKleur(m.fields[F.m.urgentie])}" data-id="${m.id}">
+          <div class="head"><span class="title">${txt((m.fields[F.m.omschrijving]||"").split("\n")[0].slice(0,80))}</span></div>
+          <div class="meta"><span>${m.fields[F.m.dagen]||0} dagen open</span><span>${txt(m.fields[F.m.locatie]||"")}</span></div>
+        </li>`).join("") || `<li class="empty">Niets openstaand.</li>`}
+    </ul>
+    <h2 class="sec">Vervallen nazichten</h2>
+    <ul class="list">${
+      vervallen.slice(0,8).map(t =>
+        `<li class="row rood"><div class="head"><span class="title">${txt(one(t.fields[F.t.omschrijving]))}</span></div>
+         <div class="meta"><span>Vervallen sinds ${datum(t.fields[F.t.volgende])}</span></div></li>`).join("")
+      || `<li class="empty">Alle nazichten zijn in orde.</li>`}
+    </ul>`;
+  $("#view").addEventListener("click", e => {
+    const li = e.target.closest("li.row[data-id]"); if(li) openMelding(li.dataset.id);
+  });
+}
+
+/* =====================================================================
+   Detailschermen
+   ===================================================================== */
+function sluit(){ $("#sheet").classList.add("hidden"); $("#panel").innerHTML = ""; }
+$("#sheet").addEventListener("click", e => { if(e.target.id === "sheet") sluit(); });
+document.addEventListener("keydown", e => { if(e.key === "Escape") sluit(); });
+
+function toon(html){
+  $("#panel").innerHTML = `<div class="closebar"><span class="note">Detail</span><button id="sluitBtn">Sluiten</button></div>` + html;
+  $("#sheet").classList.remove("hidden");
+  $("#sluitBtn").addEventListener("click", sluit);
+}
+
+/* ---------- melding ---------- */
+function openMelding(id){
+  const m = S.meldingen.find(x => x.id === id); if(!m) return;
+  const f = m.fields;
+  const afgewerkt = f[F.m.status] === "Afgewerkt";
+  const keuzeMensen = S.gebruikers.map(g =>
+    `<option value="${g.id}" ${ (f[F.m.toegewezen]||[]).indexOf(g.id)>-1 ? "selected":""}>${txt(g.fields[F.g.naam])} (${txt(g.fields[F.g.rol]||"")})</option>`).join("");
+
+  toon(`
+    <h3>${txt((f[F.m.omschrijving]||"").split("\n")[0])}</h3>
+    <p class="sub">Melding #${f[F.m.nummer]||""} · ${txt(f[F.m.bron]||"")} · ${datum(f[F.m.gemeld])}</p>
+    <dl>
+      <dt>Status</dt><dd>${txt(f[F.m.status]||"")}</dd>
+      <dt>Urgentie</dt><dd>${txt(f[F.m.urgentie]||"—")}</dd>
+      <dt>Locatie</dt><dd>${txt(f[F.m.locatie]||"—")}</dd>
+      <dt>Gemeld door</dt><dd>${txt(f[F.m.melder]||"—")}</dd>
+      <dt>Open</dt><dd>${f[F.m.dagen]||0} dagen</dd>
+      ${f[F.m.afgesloten] ? `<dt>Afgesloten</dt><dd>${datum(f[F.m.afgesloten])}</dd>` : ""}
+    </dl>
+    ${(f[F.m.omschrijving]||"").indexOf("\n") > -1
+      ? `<div class="block"><h4>Volledige omschrijving</h4><div>${txt(f[F.m.omschrijving]).replace(/\n/g,"<br>")}</div></div>` : ""}
+    ${(f[F.m.foto]||[]).length
+      ? `<div class="block"><h4>Foto</h4>${(f[F.m.foto]||[]).map(a=>`<img src="${a.url}" alt="" style="max-width:100%;border-radius:8px;margin-bottom:8px">`).join("")}</div>` : ""}
+
+    ${magBewerken() && !afgewerkt ? `
+    <div class="block">
+      <h4>Opvolging</h4>
+      <div class="field"><label for="mToe">Toegewezen aan</label>
+        <select id="mToe"><option value="">Nog niemand</option>${keuzeMensen}</select></div>
+      <div class="field"><label for="mOpm">Opmerking</label>
+        <textarea id="mOpm" rows="3">${txt(f[F.m.opmerkingen]||"")}</textarea></div>
+      <div class="actions">
+        <button class="btn sec" id="mBewaar">Bewaren</button>
+        <button class="btn sec" id="mNeem">Ik neem dit op</button>
+        <button class="btn" id="mKlaar">Afwerken</button>
+      </div>
+      <p class="msg" id="mMsg"></p>
+    </div>` : `
+    <div class="block"><h4>Opmerkingen</h4><div>${txt(f[F.m.opmerkingen]||"Geen opmerkingen.")}</div></div>`}
+  `);
+
+  if(magBewerken() && !afgewerkt){
+    $("#mBewaar").addEventListener("click", () => bewaarMelding(m, false));
+    $("#mKlaar").addEventListener("click", () => bewaarMelding(m, true));
+    $("#mNeem").addEventListener("click", () => { $("#mToe").value = S.user.id; bewaarMelding(m, false); });
+  }
+}
+
+async function bewaarMelding(m, afwerken){
+  const msg = $("#mMsg"); msg.className = "msg"; msg.textContent = "Bewaren…";
+  const toe = $("#mToe").value;
+  const velden = {
+    [F.m.opmerkingen]: $("#mOpm").value,
+    [F.m.toegewezen]: toe ? [toe] : []
+  };
+  if(afwerken){
+    velden[F.m.status] = "Afgewerkt";
+    velden[F.m.afgesloten] = vandaag();
+    velden[F.m.uitgevoerd] = [S.user.id];
+  }else if(toe && m.fields[F.m.status] === "Nieuw"){
+    velden[F.m.status] = "Toegewezen";
+  }
+  try{
+    const res = await patch(T.meldingen, m.id, velden);
+    Object.assign(m.fields, res.fields);
+    msg.className = "msg ok"; msg.textContent = afwerken ? "Afgewerkt." : "Bewaard.";
+    await laadSchool(); render();
+    if(afwerken) setTimeout(sluit, 600);
+  }catch(err){
+    msg.className = "msg err"; msg.textContent = "Bewaren lukt niet: " + err.message;
+  }
+}
+
+/* ---------- taak per school ---------- */
+function openTaak(id){
+  const t = S.taken.find(x => x.id === id); if(!t) return;
+  const f = t.fields;
+  toon(`
+    <h3>${txt(one(f[F.t.omschrijving]))}</h3>
+    <p class="sub">${txt(one(f[F.t.taakcode]))} · ${txt(f[F.t.status]||"")}</p>
+    <dl>
+      <dt>Laatste uitvoering</dt><dd>${datum(f[F.t.laatste])}</dd>
+      <dt>Volgende</dt><dd>${datum(f[F.t.volgende])}</dd>
+      <dt>Periodiciteit</dt><dd>${f[F.t.periodiciteit] ? f[F.t.periodiciteit] + " dagen" : "op afroep"}</dd>
+      <dt>Uitvoerder</dt><dd>${txt(one(f[F.t.uitvoerder])||"—")}</dd>
+      <dt>Externe firma</dt><dd>${txt(f[F.t.firma]||"—")}</dd>
+    </dl>
+    ${f[F.t.map] ? `<p><a class="link" href="${txt(f[F.t.map])}" target="_blank" rel="noopener">Documenten in Teams openen</a></p>` : ""}
+    ${f[F.t.opmerkingen] ? `<div class="block"><h4>Opmerkingen</h4><div>${txt(f[F.t.opmerkingen]).replace(/\n/g,"<br>")}</div></div>` : ""}
+    ${magBewerken() ? `
+    <div class="block">
+      <h4>Nazicht registreren</h4>
+      <div class="field"><label for="tDatum">Uitgevoerd op</label>
+        <input id="tDatum" type="date" value="${vandaag()}"></div>
+      <div class="field"><label for="tOpm">Opmerking bij dit nazicht</label>
+        <textarea id="tOpm" rows="2" placeholder="Bijvoorbeeld: attest in Teams gezet"></textarea></div>
+      <div class="actions"><button class="btn" id="tBewaar">Nazicht registreren</button></div>
+      <p class="msg" id="tMsg"></p>
+    </div>` : ""}
+  `);
+  if(magBewerken()) $("#tBewaar").addEventListener("click", () => registreerNazicht(t));
+}
+
+async function registreerNazicht(t){
+  const msg = $("#tMsg"); msg.className = "msg"; msg.textContent = "Bewaren…";
+  const d = $("#tDatum").value || vandaag();
+  const opm = $("#tOpm").value.trim();
+  try{
+    const velden = { [F.t.laatste]: d };
+    if(opm){
+      const oud = t.fields[F.t.opmerkingen] || "";
+      velden[F.t.opmerkingen] = (oud ? oud + "\n" : "") + datum(d) + " — " + opm;
+    }
+    await patch(T.taken, t.id, velden);
+    // openstaande nazichtmelding van deze taak mee afsluiten
+    const openM = S.meldingen.filter(m =>
+      (m.fields[F.m.taak]||[]).indexOf(t.id) > -1 && m.fields[F.m.status] !== "Afgewerkt");
+    await Promise.all(openM.map(m => patch(T.meldingen, m.id, {
+      [F.m.status]: "Afgewerkt",
+      [F.m.afgesloten]: d,
+      [F.m.uitgevoerd]: [S.user.id]
+    })));
+    msg.className = "msg ok"; msg.textContent = "Geregistreerd.";
+    await laadSchool(); render();
+    setTimeout(sluit, 600);
+  }catch(err){
+    msg.className = "msg err"; msg.textContent = "Bewaren lukt niet: " + err.message;
+  }
+}
+
+/* ---------- actie ---------- */
+function openActie(id){
+  const a = S.acties.find(x => x.id === id); if(!a) return;
+  const f = a.fields;
+  const statussen = ["Nog niet opgestart","In uitvoering","Aanvraag gebeurd","Uitgevoerd","Wordt niet uitgevoerd","Jaarlijks terugkerend"];
+  toon(`
+    <h3>${txt(f[F.a.actie])}</h3>
+    <p class="sub">${txt(f[F.a.plan]||"")}${f[F.a.nummer] ? " · " + txt(f[F.a.nummer]) : ""}${f[F.a.thema] ? " · " + txt(f[F.a.thema]) : ""}</p>
+    <dl>
+      <dt>Status</dt><dd>${txt(f[F.a.status]||"—")}</dd>
+      <dt>Timing</dt><dd>${txt(f[F.a.timing]||"—")}</dd>
+      <dt>Streefdatum</dt><dd>${datum(f[F.a.streefdatum])}</dd>
+      <dt>Uitvoerder</dt><dd>${txt(f[F.a.uitvoerder]||"—")}</dd>
+      <dt>Schooljaar</dt><dd>${txt((f[F.a.schooljaar]||[]).join(", ")||"—")}</dd>
+      ${f[F.a.budget] ? `<dt>Budget</dt><dd>€ ${f[F.a.budget]}</dd>` : ""}
+    </dl>
+    ${f[F.a.doel] ? `<div class="block"><h4>Doel</h4><div>${txt(f[F.a.doel]).replace(/\n/g,"<br>")}</div></div>` : ""}
+    ${f[F.a.aanpak] ? `<div class="block"><h4>Aanpak</h4><div>${txt(f[F.a.aanpak]).replace(/\n/g,"<br>")}</div></div>` : ""}
+    ${magBewerken() ? `
+    <div class="block">
+      <h4>Stand van zaken bijwerken</h4>
+      <div class="field"><label for="aSt">Status</label><select id="aSt">
+        ${statussen.map(s => `<option ${s === f[F.a.status] ? "selected":""}>${s}</option>`).join("")}
+      </select></div>
+      <div class="actions"><button class="btn" id="aBewaar">Bewaren</button></div>
+      <p class="msg" id="aMsg"></p>
+    </div>` : ""}
+  `);
+  if(magBewerken()){
+    $("#aBewaar").addEventListener("click", async () => {
+      const msg = $("#aMsg"); msg.className = "msg"; msg.textContent = "Bewaren…";
+      try{
+        await patch(T.acties, a.id, { [F.a.status]: $("#aSt").value });
+        msg.className = "msg ok"; msg.textContent = "Bewaard.";
+        await laadSchool(); render();
+      }catch(err){
+        msg.className = "msg err"; msg.textContent = "Bewaren lukt niet: " + err.message;
+      }
+    });
+  }
+}
+
+/* =====================================================================
+   Wachtwoord-hash maken:  index.html?hash
+   ===================================================================== */
+if(location.search.indexOf("hash") > -1){
+  $("#hashTool").innerHTML = `
+    <strong>Wachtwoord-hash maken</strong><br>
+    <input id="hIn" type="text" placeholder="wachtwoord" style="width:100%;padding:8px;margin:6px 0;border:1px solid var(--line);border-radius:8px">
+    <button class="btn sec" id="hBtn">Hash maken</button>
+    <code id="hOut" style="display:block;word-break:break-all;margin-top:8px"></code>
+    <span>Plak deze waarde in het veld Wachtwoord_Hash bij de gebruiker.</span>`;
+  $("#hBtn").addEventListener("click", async () => {
+    $("#hOut").textContent = await sha256($("#hIn").value);
+  });
+}
+</script>
+</body>
+</html>
